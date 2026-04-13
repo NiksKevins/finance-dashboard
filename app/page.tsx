@@ -1,65 +1,202 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useMemo, useState } from "react";
+import {
+  Wallet,
+  TrendingDown,
+  TrendingUp,
+  DollarSign,
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DashboardCard } from "@/components/DashboardCard";
+import { TransactionList } from "@/components/TransactionList";
+import { AddTransactionDialog } from "@/components/AddTransactionDialog";
+import { MonthlyBarChart } from "@/components/charts/MonthlyBarChart";
+import { CategoryDonutChart } from "@/components/charts/CategoryDonutChart";
+import { useTransactions } from "@/hooks/useTransactions";
+import { useSettings } from "@/hooks/useSettings";
+import {
+  getCurrentMonthSummary,
+  getPreviousMonthSummary,
+  getMonthlySummaries,
+  getCategorySummaries,
+  getTotalBalance,
+  getPercentageChange,
+  getMonthKey,
+} from "@/lib/analytics";
+import { formatCurrency } from "@/lib/data";
+import { Transaction, TransactionFormData } from "@/types";
+
+export default function OverviewPage() {
+  const { transactions, loading, add, update, remove } = useTransactions();
+  const { settings } = useSettings();
+  const [editTxn, setEditTxn] = useState<Transaction | null>(null);
+
+  const current = useMemo(() => getCurrentMonthSummary(transactions), [transactions]);
+  const previous = useMemo(() => getPreviousMonthSummary(transactions), [transactions]);
+  const monthlySummaries = useMemo(
+    () => getMonthlySummaries(transactions, 6),
+    [transactions]
+  );
+  const catSummaries = useMemo(
+    () => getCategorySummaries(transactions, getMonthKey(new Date())),
+    [transactions]
+  );
+  const totalBalance = useMemo(() => getTotalBalance(transactions), [transactions]);
+
+  const expenseChange = getPercentageChange(current.expenses, previous.expenses);
+  const incomeChange = getPercentageChange(current.income, previous.income);
+  const balanceChange = getPercentageChange(current.balance, previous.balance);
+
+  const recentTransactions = useMemo(
+    () =>
+      [...transactions]
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 8),
+    [transactions]
+  );
+
+  function handleEdit(id: string, data: TransactionFormData) {
+    update(id, data);
+    setEditTxn(null);
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div className="p-5 md:p-8 space-y-8">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Overview</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Your financial summary for this month
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+        <AddTransactionDialog
+          onAdd={add}
+          editTransaction={editTxn}
+          onEdit={handleEdit}
+          onEditClose={() => setEditTxn(null)}
+        />
+      </div>
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <DashboardCard
+          title="Total Balance"
+          value={formatCurrency(totalBalance, settings.currency)}
+          change={balanceChange}
+          changeLabel="vs last month"
+          icon={<Wallet className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />}
+          iconBg="bg-indigo-50 dark:bg-indigo-950/50"
+          loading={loading}
+          accent="blue"
+        />
+        <DashboardCard
+          title="Income"
+          value={formatCurrency(current.income, settings.currency)}
+          change={incomeChange}
+          changeLabel="vs last month"
+          icon={<TrendingUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />}
+          iconBg="bg-emerald-50 dark:bg-emerald-950/50"
+          loading={loading}
+          accent="green"
+        />
+        <DashboardCard
+          title="Expenses"
+          value={formatCurrency(current.expenses, settings.currency)}
+          change={expenseChange}
+          changeLabel="vs last month"
+          icon={<TrendingDown className="h-5 w-5 text-red-500 dark:text-red-400" />}
+          iconBg="bg-red-50 dark:bg-red-950/50"
+          loading={loading}
+          accent="red"
+        />
+        <DashboardCard
+          title="Net Savings"
+          value={formatCurrency(current.balance, settings.currency)}
+          subtitle="This month"
+          icon={<DollarSign className="h-5 w-5 text-violet-600 dark:text-violet-400" />}
+          iconBg="bg-violet-50 dark:bg-violet-950/50"
+          loading={loading}
+          accent="purple"
+        />
+      </div>
+
+      {/* Charts row */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+        <Card className="lg:col-span-3 border-0 shadow-sm">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-sm font-semibold">Monthly Overview</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {loading ? (
+              <div className="h-[220px] flex items-center justify-center text-sm text-muted-foreground">
+                Loading...
+              </div>
+            ) : (
+              <MonthlyBarChart
+                data={monthlySummaries}
+                currency={settings.currency}
+              />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2 border-0 shadow-sm">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-sm font-semibold">
+              Spending by Category
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {loading ? (
+              <div className="h-[160px] flex items-center justify-center text-sm text-muted-foreground">
+                Loading...
+              </div>
+            ) : (
+              <CategoryDonutChart
+                data={catSummaries}
+                currency={settings.currency}
+              />
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recent transactions */}
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold">
+              Recent Transactions
+            </CardTitle>
+            <a
+              href="/transactions"
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded"
+            >
+              View all
+            </a>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <TransactionList
+            transactions={recentTransactions}
+            loading={loading}
+            currency={settings.currency}
+            onEdit={setEditTxn}
+            onDelete={remove}
+          />
+        </CardContent>
+      </Card>
+
+      {editTxn && (
+        <AddTransactionDialog
+          onAdd={add}
+          editTransaction={editTxn}
+          onEdit={handleEdit}
+          onEditClose={() => setEditTxn(null)}
+        />
+      )}
     </div>
   );
 }

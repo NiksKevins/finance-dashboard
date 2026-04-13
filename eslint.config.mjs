@@ -13,6 +13,14 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    rules: {
+      // localStorage init in useEffect is the correct SSR-safe pattern
+      "react-hooks/set-state-in-effect": "off",
+      "@typescript-eslint/no-unused-vars": "warn",
+      "react-hooks/exhaustive-deps": "warn",
+    },
+  },
 ]);
 
 export default eslintConfig;
